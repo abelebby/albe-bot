@@ -54,6 +54,7 @@ from open_webui.models.notes import Notes
 from open_webui.models.oauth_sessions import OAuthSessions
 from open_webui.models.users import UserModel, Users
 from open_webui.retrieval.utils import filter_source_metadata, get_sources_from_items
+from open_webui.utils.albe_source_rag import apply_source_profile
 from open_webui.routers.images import (
     CreateImageForm,
     EditImageForm,
@@ -2057,8 +2058,9 @@ async def chat_completion_files_handler(
         # Check if all files are in full context mode
         all_full_context = all(item.get('context') == 'full' for item in files)
 
-        queries = []
-        if not all_full_context:
+        source_plan = body.get('metadata', {}).get('albe_source_rag')
+        queries = [source_plan['query']] if source_plan else []
+        if not all_full_context and not source_plan:
             try:
                 queries_response = await generate_queries(
                     request,
@@ -2120,7 +2122,7 @@ async def chat_completion_files_handler(
                 embedding_function=lambda query, prefix: request.app.state.EMBEDDING_FUNCTION(
                     query, prefix=prefix, user=user
                 ),
-                k=rag_config.get('rag.top_k'),
+                k=4 if source_plan else rag_config.get('rag.top_k'),
                 reranking_function=(
                     (lambda query, documents: request.app.state.RERANKING_FUNCTION(query, documents, user=user))
                     if request.app.state.RERANKING_FUNCTION
@@ -2604,8 +2606,10 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     # Model "Knowledge" handling
     user_message = get_last_user_message(form_data['messages'])
     model_knowledge = model.get('info', {}).get('meta', {}).get('knowledge', False)
+    source_profile_applied, source_passages = await apply_source_profile(request, form_data, model, metadata, user)
+    sources.extend(source_passages)
 
-    if model_knowledge and metadata.get('params', {}).get('function_calling') == 'legacy':
+    if model_knowledge and not source_profile_applied and metadata.get('params', {}).get('function_calling') == 'legacy':
         await event_emitter(
             {
                 'type': 'status',
@@ -4220,6 +4224,27 @@ async def non_streaming_chat_response_handler(response, ctx):
     response, response_data = get_response_data(response)
     if response_data is None:
         return response
+
+    if metadata.get('albe_source_rag') and response_data.get('choices'):
+        from open_webui.utils.albe_source_rag import grounding_problems, reference_footer, source_excerpt_fallback
+        message = response_data['choices'][0].get('message', {})
+        problems = grounding_problems(message.get('content', ''), metadata)
+        if problems:
+            from open_webui.utils.chat import generate_chat_completion
+            repair_data = {'model': ctx['form_data']['model'], 'messages': copy.deepcopy(ctx['form_data']['messages']), 'stream': False}
+            repair_data['messages'].append({'role': 'assistant', 'content': message.get('content', '')})
+            repair_data['messages'].append({'role': 'user', 'content': 'Correct the draft using only the supplied source passages. ' + ' '.join(problems) + ' Keep the corrected answer brief and cite the source ids.'})
+            repaired = await generate_chat_completion(request, repair_data, user=user, bypass_filter=True)
+            _, repaired_data = get_response_data(repaired)
+            if repaired_data and repaired_data.get('choices'):
+                message['content'] = repaired_data['choices'][0].get('message', {}).get('content', '')
+            if grounding_problems(message.get('content', ''), metadata):
+                message['content'] = source_excerpt_fallback(metadata)
+                metadata['albe_source_rag']['source_excerpt_fallback'] = True
+            metadata['albe_source_rag']['repair_attempted'] = True
+        message['content'] = reference_footer(message.get('content', ''), metadata)
+        response_data['albe_source_rag'] = metadata['albe_source_rag']
+        response = build_response_object(response, response_data)
 
     chat_id = metadata.get('chat_id') or ''
     save_to_chat = is_saved_chat_id(chat_id)

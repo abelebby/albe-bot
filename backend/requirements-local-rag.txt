@@ -1,0 +1,10 @@
+# Existing upstream chat dependencies plus embedded Chroma and text-based PDF loading.
+# Pins match upstream requirements.txt. Embeddings run through local Ollama.
+-r requirements-slim.txt
+chromadb==1.5.9
+onnxruntime==1.26.0
+pypdf==6.7.5
+pydub==0.25.1
+boto3==1.42.62
+google-cloud-storage==3.9.0
+azure-storage-blob==12.29.0

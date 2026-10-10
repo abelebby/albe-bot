@@ -968,9 +968,9 @@
 							Do not alter, remove, obscure, or replace it except as LICENSE permits:
 							https://docs.openwebui.com/license. -->
 								<img
-									src="{WEBUI_BASE_URL}/static/favicon.png"
-									class="sidebar-new-chat-icon size-5 rounded-full group-hover:hidden"
-									alt=""
+									src="{WEBUI_BASE_URL}/static/albe-logo.png"
+									class="sidebar-new-chat-icon size-6 rounded-md group-hover:hidden"
+									alt="Albe Lestari"
 								/>
 
 								<Sidebar className="size-4 hidden group-hover:flex" />
@@ -1155,9 +1155,9 @@
 					https://docs.openwebui.com/license. -->
 						<img
 							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
-							class="sidebar-new-chat-icon size-5 rounded-full"
-							alt=""
+							src="{WEBUI_BASE_URL}/static/albe-logo.png"
+							class="sidebar-new-chat-icon size-6 rounded-md"
+							alt="Albe Lestari"
 						/>
 					</a>
 
@@ -1169,7 +1169,7 @@
 							id="sidebar-webui-name"
 							class=" self-center font-normal text-gray-700 dark:text-gray-200"
 						>
-							{$WEBUI_NAME}
+							Albe Lestari
 						</div>
 					</a>
 					<Tooltip

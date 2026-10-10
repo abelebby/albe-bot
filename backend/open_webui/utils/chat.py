@@ -202,6 +202,11 @@ async def generate_chat_completion(
             except Exception as e:
                 raise e
 
+        from open_webui.utils.albe_source_rag import calculator_completion
+        calculation = calculator_completion(form_data.get('metadata', {}))
+        if calculation:
+            return {'id': 'chatcmpl-' + uuid.uuid4().hex, 'object': 'chat.completion', 'created': int(time.time()), 'model': model_id, 'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': calculation}, 'finish_reason': 'stop'}]}
+
         # Arena model — sub-model was already resolved by process_chat_payload.
         # Inject selected_model_id into the response for the frontend.
         metadata = form_data.get('metadata', {})

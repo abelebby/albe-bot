@@ -46,14 +46,7 @@
 	let filteredModels: any[] = [];
 	let knowledgeResults: any[] = [];
 
-	$: modelItems = (($models ?? []) as any[])
-		.filter((model) => !model?.info?.meta?.hidden)
-		.map((model) => ({
-			...model,
-			modelName: resolveLocalizedModelName(model, $i18n.language),
-			tags: model?.info?.meta?.tags?.map((tag: any) => tag.name).join(' '),
-			desc: resolveLocalizedModelDescription(model, $i18n.language)
-		}));
+	$: modelItems = [];
 
 	$: fuse = new Fuse(modelItems, {
 		keys: ['value', 'tags', 'modelName'],

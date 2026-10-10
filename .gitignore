@@ -2,12 +2,14 @@ x.py
 yarn.lock
 .DS_Store
 node_modules
+.local-tools/
 /build
 /.svelte-kit
 /package
 .env
 .env.*
 !.env.example
+!.env.elbe.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Byte-compiled / optimized / DLL files
@@ -311,3 +313,25 @@ cypress/videos
 cypress/screenshots
 .vscode/settings.json
 .cptr
+
+# ALBE local-only material
+albe-rag/documents/
+albe-rag/originals/
+albe-rag/extracts/
+albe-rag/source-passages/
+albe-rag/rag-ready/
+albe-rag/review/
+albe-rag/source-manifest.json
+albe-rag/source-passages.jsonl
+albe-rag/rag-catalog.json
+albe-rag/coverage-notes.json
+albe-rag/deployment.json
+*.gguf
+*.safetensors
+*.db-wal
+*.db-shm
+# Superseded experiments retained locally
+backend/open_webui/utils/albe_case_replies.json
+backend/open_webui/utils/albe_reference_replies.json
+backend/open_webui/utils/elbe_malay_guidance.json
+backend/open_webui/utils/elbe_troubleshooting.py

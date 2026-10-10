@@ -63,9 +63,6 @@
 		...(canStatus && 'status'.startsWith(query.toLowerCase())
 			? [{ type: 'command', data: { id: 'status' } }]
 			: []),
-		...('model'.startsWith(query.toLowerCase())
-			? [{ type: 'command', data: { id: 'model' } }]
-			: []),
 		...('settings'.startsWith(query.toLowerCase())
 			? [{ type: 'command', data: { id: 'settings' } }]
 			: []),

@@ -175,7 +175,10 @@
 	let askUserAllowOther = true;
 	let askUserTimeoutMs: number | null = null;
 
-	let selectedModels = [''];
+	let selectedModels = ['qwen3:1.7b'];
+	// This installation exposes one bot; stale URLs/settings cannot switch it.
+	$: if ($models.some((m) => m.id === 'qwen3:1.7b') && (selectedModels.length !== 1 || selectedModels[0] !== 'qwen3:1.7b')) selectedModels = ['qwen3:1.7b'];
+	$: if (atSelectedModel !== undefined) atSelectedModel = undefined;
 	let selectedModelIdx = 0;
 	$: selectedModelIdx = Math.max(0, selectedModels.length - 1);
 	$: backgroundImage = embedded
@@ -4504,7 +4507,7 @@
 							{/if}
 						{:else if embedded}
 							<div class="flex h-full min-h-0 flex-col justify-end">
-								{#if suggestedPrompts.length > 0}
+								{#if false && suggestedPrompts.length > 0}
 									<div class="flex flex-1 items-end px-5 pb-8">
 										<div class="w-full">
 											<div class="mb-2 text-[0.75rem] text-gray-300 dark:text-gray-700">
