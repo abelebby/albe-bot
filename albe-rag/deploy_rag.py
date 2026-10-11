@@ -22,6 +22,14 @@ for e in entries:
   state.setdefault('retired_file_ids',[]).append(old['id'])
   call('POST',f'/api/v1/knowledge/{state["knowledge_id"]}/file/remove?delete_file=false',json={'file_id':old['id']})
  state['files'][e['key']]={**e,'id':d['id']};statep.write_text(json.dumps(state,indent=2));print('Indexed',e['key'],flush=True)
+# Detach obsolete page records only after every topic record is ready; preserve stored files.
+active_keys={e['key'] for e in entries}
+for key in list(state['files']):
+ if key not in active_keys:
+  old=state['files'].pop(key)
+  call('POST',f"/api/v1/knowledge/{state['knowledge_id']}/file/remove?delete_file=false",json={'file_id':old['id']})
+  state.setdefault('retired_file_ids',[]).append(old['id'])
+statep.write_text(json.dumps(state,indent=2))
 # Publish bindings only after every file has processed successfully.
 for model_id in ['qwen3:1.7b']:
  try:

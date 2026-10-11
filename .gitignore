@@ -335,3 +335,7 @@ backend/open_webui/utils/albe_case_replies.json
 backend/open_webui/utils/albe_reference_replies.json
 backend/open_webui/utils/elbe_malay_guidance.json
 backend/open_webui/utils/elbe_troubleshooting.py
+
+albe-rag/topic-ready/
+albe-rag/topic-records.json
+albe-rag/page-catalog.json

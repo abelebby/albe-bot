@@ -1,0 +1,8 @@
+from pathlib import Path
+import requests,json
+root=Path(__file__).resolve().parent
+s=requests.Session();b='http://127.0.0.1:8080';a=s.post(b+'/api/v1/auths/signin',json={'email':'admin@localhost','password':'admin'});a.raise_for_status();s.headers['Authorization']='Bearer '+a.json()['token'];s.get(b+'/api/models')
+cases=[('intake','I have a client here interested in our raw water treatment solutions'),('palm','Our palm oil mill treats river water before supplying the plant. After heavy rain, the water turns brown and its pH is 4.8. We dose soda ash before PAC, but the flocs are small and settle poorly. What should we check, and which products mentioned in the handbook might be relevant? Explain the conditions and what we need to confirm before changing treatment.'),('viscosity','What is the viscosity of Cestfloc 1333?'),('sds','What exact dosage of Cestfloc 1833 should I use for palm oil mill wastewater? Does the supplied SDS establish one?'),('mass','At a supplied product dose of 30 mg/L, 27 m³/h for 8 hours, how much product is needed?'),('jar','For a 500 mL jar sample, what concentration does 3 mL of 0.1% w/v stock represent?'),('tds','Raw-water TDS is 100 and post-clarifier TDS is 220. Does the handbook prove overdosing?')]
+results=[]
+for key,q in cases:
+ r=s.post(b+'/api/chat/completions',json={'model':'qwen3:1.7b','messages':[{'role':'user','content':q}],'stream':False},timeout=180);r.raise_for_status();d=r.json();rec={'key':key,'question':q,'answer':d['choices'][0]['message']['content'],'retrieval':d.get('albe_source_rag')};results.append(rec);(root/'review'/'TOPIC-LIVE-RESULTS.json').write_text(json.dumps(results,ensure_ascii=False,indent=2));print(json.dumps(rec,ensure_ascii=False),flush=True)

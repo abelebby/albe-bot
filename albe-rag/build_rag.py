@@ -41,6 +41,7 @@ for b in original:
  content=header+'\n## Source text\n\n'+text+'\n'
  p=ready/f'{b["id"]}.md';p.write_text(content)
  entries.append({'key':b['id'],'path':str(p),'name':p.name,'label':label,'source_id':key,'pdf_page':b['pdf_page'],'kind':status,'products':products.get(key,[]),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+(root/'page-catalog.json').write_text(json.dumps(entries,indent=2))
 (root/'rag-catalog.json').write_text(json.dumps(entries,indent=2))
 (root/'coverage-notes.json').write_text(json.dumps(notes,indent=2))
 print('Compiled',len(entries),'source-page files including 6 SPM pages; originals unchanged.')

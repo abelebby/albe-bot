@@ -90,7 +90,7 @@ async def apply_source_profile(request, form_data, model, metadata, user):
     if calc:
         instruction += '\nVerified local calculator output:\n' + calc
     user_turns=[m for m in form_data['messages'] if m.get('role')=='user']
-    ambiguous = len(user_turns)==1 and re.search(r'\b(its|that product|this product|their|what about it)\b',current,re.I) and not any(p in current for p in PRODUCTS)
+    ambiguous = len(user_turns)==1 and len(current)<160 and re.search(r'\b(its|that product|this product|their|what about it)\b',current,re.I) and not re.search(r'1220|1311|1333|1490|1833|PAC|soda|RL\s*1200|CR\s*1800|RE\s*3030|raw.water|river|mill|client|\bpH\b',current,re.I)
     if ambiguous:
         metadata['albe_source_rag']['clarification'] = 'Which product do you mean?'
         instruction+='\nThis fresh chat does not identify the product referred to by the pronoun. Ask which product the user means; do not infer its identity from retrieval.'
@@ -99,7 +99,10 @@ async def apply_source_profile(request, form_data, model, metadata, user):
     instruction += '\nAnswer entirely in '+{'en':'English','ms':'Bahasa Melayu (Malaysian Malay)','zh':'Chinese'}[language]+'.'
     if re.search(r'kelikatan|粘度|黏度',current,re.I):
         instruction += '\nThe user asks for VISCOSITY. Kelikatan / 粘度 means viscosity. Answer that specification, retaining solution concentration and temperature.'
-    if general_question(current) or arithmetic(current) or ambiguous:
+    introduction=bool(re.search(r'client.*interested|client.*(?:wants|looking for).*raw.water',current,re.I)) and not re.search(r'floc|brown|tannin|\bpH\b|turbidity|problem|fault|dose',current,re.I)
+    if introduction:
+        instruction+='\nThe user has introduced a client without a specific problem. Ask briefly for the water source, main concern/treatment goal and available measurements. Do not list products, doses or handbook procedures yet.'
+    if general_question(current) or arithmetic(current) or ambiguous or introduction:
         form_data['messages'] = add_or_update_system_message(instruction, form_data['messages'], append=True)
         return True, []
     # Open WebUI's local embedding + BM25 retrieval and ordinary file access checks are reused.
@@ -117,6 +120,8 @@ async def apply_source_profile(request, form_data, model, metadata, user):
             name=meta.get('name',''); info=profile['files_by_name'].get(name,{})
             if not info:
                 continue
+            if re.search(r'handbook|manual',query,re.I) and not explicit and info.get('source_id') not in ('HB','SPM'):continue
+            if info.get('topic')=='mechanism-reference' and not re.search(r'mechanism|reaction|sodium.*tannin',query,re.I):continue
             matching=not explicit or any(p in info.get('products',[]) for p in explicit)
             if strict and not matching:
                 continue
@@ -126,18 +131,38 @@ async def apply_source_profile(request, form_data, model, metadata, user):
             seen.add(doc)
             candidates.append((matching,doc,meta,info))
     # Exact product identifiers improve ordering; semantic/BM25 order is retained within each group.
+    if re.search(r'brown|tannin|air.*perang',query,re.I) and not re.search(r'3\s*[:/]\s*10|general.*(?:order|ratio)|compare.*(?:order|ratio)',query,re.I):
+        candidates=[c for c in candidates if c[3].get('topic') not in ('general-dosing-order','alum-blend','coagulant-range')]
+        candidates.sort(key=lambda c:0 if c[3]['key']=='HB-p27' else 1 if c[3]['key']=='HB-p20' else 2 if c[3].get('topic') in ('high-tannin','pin-flocs') else 3)
+        instruction+='\nBrown water is a reported observation, not confirmed tannin. Treat high-tannin and pin-floc records as separate possibilities to investigate. The specific high-tannin warning cannot be replaced with a generic soda/PAC ratio. Preserve which chemical each condition restricts. Do not prescribe case-example doses.'
+    # Follow an explicit source cross-reference when the reported observation also matches it.
+    # The two records stay separate; this retrieves evidence, not a product decision.
+    if any(c[3].get('topic')=='high-tannin' for c in candidates) and re.search(r'floc|settle|pemendapan|絮',query,re.I):
+        linked_keys=set(k for c in candidates if c[3].get('topic')=='high-tannin' for k in c[3].get('linked_topics',[]))
+        bound=[v for v in profile['files_by_name'].values() if v['key'] in linked_keys and v.get('topic')=='pin-flocs']
+        linked=await get_sources_from_items(request=request,items=[{'id':v['id'],'type':'file','context':'full'} for v in bound],queries=[query],embedding_function=lambda q,prefix: request.app.state.EMBEDDING_FUNCTION(q,prefix=prefix,user=user),k=2,reranking_function=None,k_reranker=2,r=0.0,hybrid_bm25_weight=0.5,hybrid_search=False,full_context=True,user=user) if bound else []
+        for source in linked:
+            for doc,meta in zip(source.get('document',[]),source.get('metadata',[])):
+                info=profile['files_by_name'].get(meta.get('name',''),{})
+                if info:candidates.append((True,doc,meta,info))
+        candidates.sort(key=lambda c:0 if c[3]['key']=='HB-p27' else 1 if c[3]['key']=='HB-p20' else 2 if c[3].get('topic') in ('high-tannin','pin-flocs') else 3)
+        # Keep the source packet focused on the matched faults and jar/floc verification.
+        candidates=[c for c in candidates if c[3].get('topic') in ('high-tannin','pin-flocs','jar-calculation','floc-observation','stock-preparation')]
     if explicit:candidates.sort(key=lambda x:not x[0])
     # Keep numerical tools tied to their documented method, avoiding unrelated stock/dose examples.
     formula_keys = []
-    if calc and 'mass formula' in calc: formula_keys = ['HB-p18', 'SPM-p20']
-    if calc and 'jar table' in calc: formula_keys = ['HB-p17', 'SPM-p19']
-    if re.search(r'\bTDS\b', query, re.I): formula_keys = ['HB-p16','HB-p18','SPM-p18']
-    product_keys = [v['key'] for v in profile['files_by_name'].values() if v['source_id'] in ('D04','D05','D06') and any(p in v.get('products',[]) for p in explicit)]
+    if calc and 'mass formula' in calc: formula_keys = ['HB-p18', 'SPM-mass']
+    if calc and 'jar table' in calc: formula_keys = ['HB-p17', 'SPM-jar']
+    if re.search(r'\bTDS\b', query, re.I): formula_keys = ['HB-tds-conflict','SPM-tds-conflict']
+    property_question=re.search(r'viscosity|kelikatan|粘度|黏度|ionicity|specification|compare|density|acrylamide',query,re.I)
+    desired_topic='product-specifications' if property_question or len(explicit)>1 else ('product-preparation' if re.search(r'stock|prepar|dilut|larutan|dosage',query,re.I) else ('product-storage' if re.search(r'stor|shelf',query,re.I) else 'product-identity'))
+    product_keys = [v['key'] for v in profile['files_by_name'].values() if v['source_id'] in ('D04','D05','D06') and any(p in v.get('products',[]) for p in explicit) and v.get('topic')==desired_topic]
+    if property_question and len(explicit)==1:instruction+='\nFor this single-property question, give the documented value, test concentration and temperature, with a source citation. Do not add general theory or unrelated product information.'
     if product_keys and not formula_keys: formula_keys=product_keys
     if formula_keys:
         bound = [v for v in profile['files_by_name'].values() if v['key'] in formula_keys]
         linked = await get_sources_from_items(request=request, items=[{'id':v['id'],'type':'file','context':'full'} for v in bound], queries=[query], embedding_function=lambda q,prefix: request.app.state.EMBEDDING_FUNCTION(q,prefix=prefix,user=user), k=3, reranking_function=None, k_reranker=3, r=0.0, hybrid_bm25_weight=0.5, hybrid_search=False, full_context=True, user=user)
-        previous_candidates = [c for c in candidates if c[3]['key'] not in formula_keys] if product_keys else []
+        previous_candidates = [c for c in candidates if c[3]['key'] not in formula_keys] if product_keys and not property_question else []
         candidates=[]
         for source in linked:
             for doc,meta in zip(source.get('document',[]),source.get('metadata',[])):
@@ -207,9 +232,13 @@ def grounding_problems(answer, metadata):
     if re.search(r'Tannin\s*x\s*Na\s*\(Soluble\)',evidence,re.I):
         if any(re.search(r'insoluble',p,re.I) and re.search(r'sodium|Na\b',p,re.I) for p in answer.split('\n\n')):
             issues.append('The source labels tannin-sodium SOLUBLE, not insoluble. Do not invent a reaction explanation; answer the documented sequence and its conditions.')
+    if 'CR1800' in evidence and re.search(r'CR\s*1800[^.\n]*(?:a clarifier|equipment|a machine|a tank)',answer,re.I):
+        issues.append('CR1800 is a treatment product named in the tannin dosing scenario, not clarifier equipment. Its precise chemistry is not established in the supplied material. Do not invent its role.')
+    if any(k in (metadata.get('albe_source_rag') or {}).get('passages',[]) for k in ['HB-p27','SPM-tannin']) and not re.search(r'confirmed tannin|measured tannin|tannin (?:result|measurement)',query,re.I) and re.search(r'indicates? (?:the presence of |high[- ]?)tannin|due to tannin|confirms? tannin',answer,re.I):
+        issues.append('The client reports brown water and pH; tannin has NOT been confirmed. Present high tannin as a possibility to investigate, never an established diagnosis from colour or pH alone.')
     if 'CR1800' in evidence and re.search(r'CR\s*1800[^.\n]*20\s*ppm',answer,re.I) and not re.search(r'approximately|about|≈|example|jar.test|conditional',answer,re.I):
         issues.append('The source gives APPROXIMATELY 20 ppm CR1800 in a specific tannin scenario, not a confirmed dose for this client. Preserve the OR conditions pH below 5, alum above 100 ppm, PAC above 40 ppm and state jar-test verification.')
-    if re.search(r'viscosity|kelikatan|黏度|粘度',answer,re.I) and re.search(r'\bcps\b',answer,re.I) and ('D04-p01' in (metadata.get('albe_source_rag') or {}).get('passages',[]) or 'D05-p01' in (metadata.get('albe_source_rag') or {}).get('passages',[])) and not ('0.1' in answer and re.search(r'25\s*°?\s*C',answer,re.I)):
+    if re.search(r'viscosity|kelikatan|黏度|粘度',answer,re.I) and re.search(r'\bcps\b',answer,re.I) and any(k.startswith(('D04-','D05-')) for k in (metadata.get('albe_source_rag') or {}).get('passages',[])) and not ('0.1' in answer and re.search(r'25\s*°?\s*C',answer,re.I)):
         issues.append('Keep the viscosity test conditions: both 1311 and 1333 values are for 0.1% solution at 25°C. Cite both PDS source ids when comparing them.')
     if re.search(r'\bTDS\b',query,re.I) and re.search(r'(?:≤|<=|no more than)\s*2\.5',answer,re.I):
         issues.append('The second original threshold is STRICTLY LESS THAN 2.5 times, not ≤2.5. Preserve < and cite HB PDF18 for that threshold.')
@@ -241,11 +270,13 @@ def source_excerpt_fallback(metadata):
     if not sources:return 'I could not verify this answer from the retrieved documents.'
     query=(metadata.get('albe_source_rag') or {}).get('query','')
     keys=[];parts=[]
+    matched=(metadata.get('albe_source_rag') or {}).get('passages',[])
+    maximum=2 if ('1311' in query and '1333' in query) or ('HB-p27' in matched and 'HB-p20' in matched) else 1
     for source in sources:
         key=source.get('metadata',[{}])[0].get('source')
         if key in keys:continue
         keys.append(key)
-        if len(parts)>= (2 if '1311' in query and '1333' in query else 1):break
+        if len(parts)>=maximum:break
         doc=source.get('document',[''])[0]
         text=doc.split('## Source text',1)[-1].strip()
         if '1311' in query and '1333' in query and 'PRODUCT SPECIFICATION' in text:

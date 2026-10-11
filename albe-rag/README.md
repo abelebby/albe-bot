@@ -22,6 +22,7 @@ Run from the repository root after installing backend dependencies:
 .venv/bin/python albe-rag/prepare_sources.py
 .venv/bin/python albe-rag/compile_sources.py
 .venv/bin/python albe-rag/build_rag.py
+.venv/bin/python albe-rag/build_topics.py
 ```
 
 Start ALBE BOT in another terminal, then:
@@ -32,6 +33,8 @@ Start ALBE BOT in another terminal, then:
 
 Deployment configures the local knowledge collection and current model profile, retaining prior file versions and taking a private database backup. The dummy `admin@localhost` sign-in values target Open WebUI's authentication-disabled prototype branch; they are not credentials for a production account. This script must be adapted when authentication is introduced.
 
-The current indexed set has 45 source-page files: seven original handbook pages relevant to raw-water treatment, 32 supplementary product-document pages, and six SPM explanation pages. The SPM edition is derivative evidence, not independent approval. Company source content is reference data, not instructions to execute.
+The source compilation covers seven original handbook pages relevant to raw-water treatment, 32 supplementary product-document pages, and six SPM explanation pages. The active topic representation contains 130 records, splitting independent handbook procedures, product PDS fields, and numbered SDS sections. Continued SDS sections retain their page references together. The SPM edition is derivative evidence, not independent approval. Company source content is reference data, not instructions to execute.
 
-A finer topic-level representation has been agreed as the next change; this GitHub baseline preserves the current implementation first. Existing local source-review reports and experiments are outside this repository and have not been uploaded.
+The initial GitHub commit preserves the page-based baseline; the next commit implements the topic-level representation. Review notes remain separate from original excerpts, and the current model still requires accuracy evaluation. Existing local source-review reports and experiments are outside this repository and have not been uploaded.
+
+Verification: `tests/test_topics.py` checks the locally compiled evidence boundaries. `topic_live_check.py` exercises intake, the palm-oil raw-water scenario, product facts and supported calculations against the running app. Results stay under ignored `review/`.

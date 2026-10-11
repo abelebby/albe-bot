@@ -8,11 +8,11 @@ The current prototype focuses on **raw-water clarification**. It retrieves appro
 
 - Branded chat interface with ALBE BOT identity and a fixed `qwen3:1.7b` model; model selection and starter suggestions are hidden.
 - Local Ollama inference and `nomic-embed-text:v1.5` embeddings; embedded Chroma and BM25/vector retrieval.
-- Source references distinguish the original handbook, supplied SPM explanation and editorial review notes.
+- 130 procedure-sized source records keep applicability, roles, examples and original/SPM references together. Source references distinguish original evidence from derivative explanations and editorial notes.
 - Deterministic arithmetic for supported product-mass and w/v jar-test calculations.
 - Selected observed-error checks, one correction attempt, and source excerpts when a detected contradiction persists.
 
-The small model still makes interpretation errors. This is a development prototype; broader technical accuracy, multilingual answers and performance on 8 GB CPU-only laptops remain unvalidated. Training has not been performed. Topic-based source restructuring and stronger-model evaluation are pending.
+The small model still makes interpretation errors. This is a development prototype; broader technical accuracy, multilingual answers and performance on 8 GB CPU-only laptops remain unvalidated. Training has not been performed. Topic-based source records are implemented; stronger-model evaluation remains pending.
 
 ## Local development
 
@@ -45,6 +45,7 @@ From this repository:
 
 ```sh
 .venv/bin/python albe-rag/tests/test_source_rag.py
+.venv/bin/python albe-rag/tests/test_topics.py
 ```
 
 The targeted tests cover calculator bounds, explicit inputs, stock basis, within-chat retrieval context, observed-error checks and source-bound calculator rendering. They do not establish complete treatment accuracy. Local testing also exercised retrieval and calculations with backend external network access blocked; that is not a physically disconnected-laptop test.
